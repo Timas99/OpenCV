@@ -1,0 +1,171 @@
+import rospy
+import cv2
+import numpy as np
+from cv_bridge import CvBridge, CvBridgeError
+from sensor_msgs.msg import Image
+from std_msgs.msg import Int32
+error_x =int()
+error_y=int()
+X1 = 0
+X2 = 0
+X3 = 0
+X4 = 0
+i = 0
+
+class LineFollower(object):
+
+    def __init__(self):
+    
+        self.bridge_object = CvBridge()
+        self.image_sub = rospy.Subscriber("image_with_objects",Image,self.camera_callback)
+
+    def camera_callback(self,data):
+	pub1 = rospy.Publisher('BlueX', Int32, queue_size=3)
+	pub2 = rospy.Publisher('YellowX', Int32, queue_size=3)
+	pub3 = rospy.Publisher('RadX', Int32, queue_size=3)
+	pub4 = rospy.Publisher('GreenX', Int32, queue_size=3)
+
+        try:
+            cv_image = self.bridge_object.imgmsg_to_cv2(data, desired_encoding="bgr8") 
+  	except CvBridgeError as e:
+            print(e)
+            
+       
+        height, width, channels = cv_image.shape
+        crop_img = cv_image[1:height][1:width]
+        
+        hsv = cv2.cvtColor(crop_img, cv2.COLOR_BGR2HSV)
+        
+        lower_blue = np.array([235,0,200])
+        upper_blue = np.array([245,255,255])
+
+	lower_yellow = np.array([55,0,200])
+	upper_yellow = np.array([65,255,255])
+
+	lower_rad = np.array([0,0,200])
+	upper_rad = np.array([0,255,255])
+
+	lower_green = np.array([115,0,200])
+	upper_green = np.array([125,255,255])
+	
+
+       	mask1 = cv2.inRange(hsv, lower_blue, upper_blue)
+	mask2 = cv2.inRange(hsv, lower_yellow, upper_yellow)
+        mask3 = cv2.inRange(hsv, lower_rad, upper_rad)
+	mask4 = cv2.inRange(hsv, lower_green, upper_green)
+
+        	  
+
+	m1 = cv2.moments(mask1, False)
+        try:
+            cx, cy = m1['m10']/m1['m00'], m1['m01']/m1['m00']
+	    global X1 
+	    X1 = cx
+	    rospy.loginfo(X1)
+            pub1.publish(X1)
+        except ZeroDivisionError:
+            cy, cx = height/2, width/2
+  	    global X1
+	    X1 = cx
+	    rospy.loginfo(X1)
+            pub1.publish(X1)
+	  
+	m2 = cv2.moments(mask2, False)
+        try:
+            cx, cy = m2['m10']/m2['m00'], m2['m01']/m2['m00']
+	    global X2
+	    X2 = cx
+	    rospy.loginfo(X2)
+            pub2.publish(X2)
+        except ZeroDivisionError:
+            cy, cx = height/2, width/2
+	    global X2
+            X2 = cx
+            rospy.loginfo(X2)
+            pub2.publish(X2)
+
+	m3 = cv2.moments(mask3, False)
+        try:
+            cx, cy = m3['m10']/m3['m00'], m3['m01']/m3['m00']
+            global X3
+            X3 = cx
+            rospy.loginfo(X3)
+            pub3.publish(X3)
+        except ZeroDivisionError:
+            cy, cx = height/2, width/2
+            global X3
+            X3 = cx
+            rospy.loginfo(X3)
+            pub3.publish(X3)
+
+	m4 = cv2.moments(mask4, False)
+        try:
+            cx, cy = m4['m10']/m4['m00'], m4['m01']/m4['m00']
+            global X4
+            X4 = cx
+            rospy.loginfo(X4)
+            pub4.publish(X4)
+        except ZeroDivisionError:
+            cy, cx = height/2, width/2
+            global X4
+            X4 = cx
+            rospy.loginfo(X4)
+            pub4.publish(X4)
+
+
+	res1 = cv2.bitwise_and(crop_img,crop_img, mask= mask1)
+        cv2.circle(res1,(int(cx), int(cy)), 10,(0,0,255),-1)
+
+	res2 = cv2.bitwise_and(crop_img,crop_img, mask= mask2)
+        cv2.circle(res2,(int(cx), int(cy)), 10,(0,0,255),-1)
+	
+	res3 = cv2.bitwise_and(crop_img,crop_img, mask= mask3)
+        cv2.circle(res3,(int(cx), int(cy)), 10,(0,0,255),-1)
+
+	res4 = cv2.bitwise_and(crop_img,crop_img, mask= mask4)
+        cv2.circle(res4,(int(cx), int(cy)), 10,(0,0,255),-1)
+
+        cv2.imshow("Original", cv_image)
+        cv2.imshow("HSV", hsv)
+        cv2.imshow("MASK1", mask1)
+	cv2.imshow("MASK2", mask2)
+	cv2.imshow("MASK3", mask3)
+	cv2.imshow("MASK4", mask4)
+        cv2.imshow("RES1", res1)
+	cv2.imshow("RES2", res2)
+	cv2.imshow("RES3", res3)
+	cv2.imshow("RES4", res4)
+	        
+        cv2.waitKey(1)
+        global error_y
+        global error_x
+        
+        error_x = cx - width / 2
+        error_y = cy - height/2
+	
+	
+
+    def clean_up(self):
+        cv2.destroyAllWindows()
+        
+        
+
+def main():
+    rospy.init_node('line_following_node', anonymous=True)
+    
+
+    line_follower_object = LineFollower()      
+    
+    rate = rospy.Rate(5)
+    ctrl_c = False
+    try:
+        rospy.spin()
+    except KeyboardInterrupt:
+        print("Shutting down")
+    cv2.destroyAllWindows()
+     
+
+    
+    
+if __name__ == '__main__':
+    main()
